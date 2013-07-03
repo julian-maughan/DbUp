@@ -63,6 +63,12 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BuilderTests.cs" />
+    <Compile Include="Oracle\OracleTableJournalTests.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Oracle\MockConnectionManager.cs" />
+    <Compile Include="Oracle\MockDbException.cs" />
+    <Compile Include="Oracle\OracleScriptExecutorTests.cs" />
     <Compile Include="Specifications\UpgradeDatabase.cs" />
     <Compile Include="Specifications\Contexts\EmptyDatabase.cs" />
     <Compile Include="Specifications\Contexts\GivenANewDatabase.cs" />
@@ -86,6 +92,10 @@
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup>
+    <ProjectReference Include="..\DbUp.Oracle\DbUp.Oracle.csproj">
+      <Project>{335FE525-C344-4AB7-9808-A50727A6C679}</Project>
+      <Name>DbUp.Oracle</Name>
+    </ProjectReference>
     <ProjectReference Include="..\DbUp.SqlCe\DbUp.SqlCe.csproj">
       <Project>{E7EDAFD6-1DD3-4D85-806A-20340032D2A9}</Project>
       <Name>DbUp.SqlCe</Name>
@@ -120,6 +130,7 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+  <ItemGroup />
   <PropertyGroup>
     <PostBuildEvent>
 if not exist "$(TargetDir)x86" md "$(TargetDir)x86"

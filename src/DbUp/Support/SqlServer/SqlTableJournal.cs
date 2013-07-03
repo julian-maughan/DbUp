@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Data.Common;
-using System.Data.SqlClient;
 using DbUp.Engine;
 using DbUp.Engine.Output;
 using DbUp.Engine.Transactions;
@@ -13,114 +9,18 @@ namespace DbUp.Support.SqlServer
     /// An implementation of the <see cref="IJournal"/> interface which tracks version numbers for a 
     /// SQL Server database using a table called dbo.SchemaVersions.
     /// </summary>
-    public class SqlTableJournal : IJournal
+    public class SqlTableJournal : DbTableJournal
     {
-        private readonly string schemaTableName;
-        private readonly Func<IConnectionManager> connectionManager;
-        private readonly Func<IUpgradeLog> log;
-
         /// <summary>
-        /// Initializes a new instance of the <see cref="SqlTableJournal"/> class.
+        /// 
         /// </summary>
-        /// <param name="connectionManager">The connection manager.</param>
-        /// <param name="logger">The log.</param>
-        /// <param name="schema">The schema that contains the table.</param>
-        /// <param name="table">The table name.</param>
-        /// <example>
-        /// var journal = new TableJournal("Server=server;Database=database;Trusted_Connection=True", "dbo", "MyVersionTable");
-        /// </example>
+        /// <param name="connectionManager"></param>
+        /// <param name="logger"></param>
+        /// <param name="schema"></param>
+        /// <param name="table"></param>
         public SqlTableJournal(Func<IConnectionManager> connectionManager, Func<IUpgradeLog> logger, string schema, string table)
+            : base(connectionManager, logger, new SqlServerObjectNameParser(), schema, table)
         {
-            schemaTableName = SqlObjectParser.QuoteSqlObjectName(table);
-            if (string.IsNullOrEmpty(schema))
-                schemaTableName = SqlObjectParser.QuoteSqlObjectName(table);
-            else
-                schemaTableName = SqlObjectParser.QuoteSqlObjectName(schema) + "." + SqlObjectParser.QuoteSqlObjectName(table);
-            this.connectionManager = connectionManager;
-            log = logger;
-        }
-
-        /// <summary>
-        /// Recalls the version number of the database.
-        /// </summary>
-        /// <returns>All executed scripts.</returns>
-        public string[] GetExecutedScripts()
-        {
-            log().WriteInformation("Fetching list of already executed scripts.");
-            var exists = DoesTableExist();
-            if (!exists)
-            {
-                log().WriteInformation(string.Format("The {0} table could not be found. The database is assumed to be at version 0.", schemaTableName));
-                return new string[0];
-            }
-
-            var scripts = new List<string>();
-            connectionManager().ExecuteCommandsWithManagedConnection(dbCommandFactory =>
-            {
-                using (var command = dbCommandFactory())
-                {
-                    command.CommandText = GetExecutedScriptsSql(schemaTableName);
-                    command.CommandType = CommandType.Text;
-
-                    using (var reader = command.ExecuteReader())
-                    {
-                        while (reader.Read())
-                            scripts.Add((string)reader[0]);
-                    }
-                }
-            });
-
-            return scripts.ToArray();
-        }
-
-        /// <summary>
-        /// The Sql which gets 
-        /// </summary>
-        protected virtual string GetExecutedScriptsSql(string table)
-        {
-            return string.Format("select [ScriptName] from {0} order by [ScriptName]", table);
-        }
-
-        /// <summary>
-        /// Records a database upgrade for a database specified in a given connection string.
-        /// </summary>
-        /// <param name="script">The script.</param>
-        public void StoreExecutedScript(SqlScript script)
-        {
-            var exists = DoesTableExist();
-            if (!exists)
-            {
-                log().WriteInformation(string.Format("Creating the {0} table", schemaTableName));
-
-                connectionManager().ExecuteCommandsWithManagedConnection(dbCommandFactory =>
-                {
-                    using (var command = dbCommandFactory())
-                    {
-                        command.CommandText = CreateTableSql(schemaTableName);
-
-                        command.CommandType = CommandType.Text;
-                        command.ExecuteNonQuery();
-                    }
-
-                    log().WriteInformation(string.Format("The {0} table has been created", schemaTableName));
-                });
-            }
-
-            connectionManager().ExecuteCommandsWithManagedConnection(dbCommandFactory =>
-            {
-                using (var command = dbCommandFactory())
-                {
-                    command.CommandText = string.Format("insert into {0} (ScriptName, Applied) values (@scriptName, '{1}')", schemaTableName, DateTime.UtcNow.ToString("s"));
-
-                    var param = command.CreateParameter();
-                    param.ParameterName = "scriptName";
-                    param.Value = script.Name;
-                    command.Parameters.Add(param);
-
-                    command.CommandType = CommandType.Text;
-                    command.ExecuteNonQuery();
-                }
-            });
         }
 
         /// <summary>
@@ -128,38 +28,13 @@ namespace DbUp.Support.SqlServer
         /// </summary>
         /// <param name="tableName"></param>
         /// <returns></returns>
-        protected virtual string CreateTableSql(string tableName)
+        protected override string CreateTableSql(string tableName)
         {
             return string.Format(@"create table {0} (
 	[Id] int identity(1,1) not null constraint PK_SchemaVersions_Id primary key,
 	[ScriptName] nvarchar(255) not null,
 	[Applied] datetime not null
 )", tableName);
-        }
-
-        private bool DoesTableExist()
-        {
-            return connectionManager().ExecuteCommandsWithManagedConnection(dbCommandFactory =>
-            {
-                try
-                {
-                    using (var command = dbCommandFactory())
-                    {
-                        command.CommandText = string.Format("select count(*) from {0}", schemaTableName);
-                        command.CommandType = CommandType.Text;
-                        command.ExecuteScalar();
-                        return true;
-                    }
-                }
-                catch (SqlException)
-                {
-                    return false;
-                }
-                catch (DbException)
-                {
-                    return false;
-                }
-            });
         }
     }
 }

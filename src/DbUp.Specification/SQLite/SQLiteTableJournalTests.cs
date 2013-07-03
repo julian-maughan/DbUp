@@ -51,8 +51,7 @@ namespace DbUp.Tests.SQLite
             journal.StoreExecutedScript(new SqlScript("test", "select 1"));
 
             // Expect
-            command.Received().CreateParameter();
-            Assert.AreEqual("scriptName", param.ParameterName);
+            Assert.That(command.CommandText, Is.EqualTo("CREATE TABLE TEST_DBUP_SCHEMA.TEST_SCHEMA_VERSION_TABLE (ID VARCHAR2(32) DEFAULT sys_guid() NOT NULL, SCRIPT_NAME VARCHAR2(255) NOT NULL, APPLIED DATE NOT NULL, CONSTRAINT PK_TEST_SCHEMA_VERSION_TABLE PRIMARY KEY (ID) ENABLE VALIDATE)"));
             command.Received().ExecuteNonQuery();
         }
     }

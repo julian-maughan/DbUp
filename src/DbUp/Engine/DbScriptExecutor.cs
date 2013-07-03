@@ -1,49 +1,25 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data.Common;
-using System.Data.SqlClient;
 using System.Linq;
-using DbUp.Engine;
 using DbUp.Engine.Output;
 using DbUp.Engine.Preprocessors;
 using DbUp.Engine.Transactions;
 using DbUp.Helpers;
+using DbUp.Support;
 
-namespace DbUp.Support.SqlServer
+namespace DbUp.Engine
 {
     /// <summary>
-    /// A standard implementation of the IScriptExecutor interface that executes against a SQL Server 
-    /// database.
+    /// A standard implementation of the IScriptExecutor interface that executes against a database.
     /// </summary>
-    public sealed class SqlScriptExecutor : IScriptExecutor
+    public abstract class DbScriptExecutor : IScriptExecutor
     {
-        private readonly Func<IConnectionManager> connectionManager;
+        private readonly Func<IConnectionManager> connectionManagerFactory;
         private readonly Func<IUpgradeLog> log;
         private readonly IEnumerable<IScriptPreprocessor> scriptPreprocessors;
+        private readonly IObjectNameParser objectNameParser;
         private readonly Func<bool> variablesEnabled;
-
-        /// <summary>
-        /// SQLCommand Timeout in seconds. If not set, the default SQLCommand timeout is not changed.
-        /// </summary>
-        public int? ExecutionTimeoutSeconds { get; set; }
-
-        /// <summary>
-        /// Initializes an instance of the <see cref="SqlScriptExecutor"/> class.
-        /// </summary>
-        /// <param name="connectionManager"></param>
-        /// <param name="log">The logging mechanism.</param>
-        /// <param name="schema">The schema that contains the table.</param>
-        /// <param name="variablesEnabled">Function that returns <c>true</c> if variables should be replaced, <c>false</c> otherwise.</param>
-        /// <param name="scriptPreprocessors">Script Preprocessors in addition to variable substitution</param>
-        public SqlScriptExecutor(Func<IConnectionManager> connectionManager, Func<IUpgradeLog> log, string schema, Func<bool> variablesEnabled, 
-            IEnumerable<IScriptPreprocessor> scriptPreprocessors)
-        {
-            Schema = schema;
-            this.log = log;
-            this.variablesEnabled = variablesEnabled;
-            this.scriptPreprocessors = scriptPreprocessors;
-            this.connectionManager = connectionManager;
-        }
 
         /// <summary>
         /// Database Schema, should be null if database does not support schemas
@@ -51,28 +27,47 @@ namespace DbUp.Support.SqlServer
         public string Schema { get; set; }
 
         /// <summary>
-        /// Executes the specified script against a database at a given connection string.
+        /// SQLCommand Timeout in seconds. If not set, the default SQLCommand timeout is not changed.
         /// </summary>
-        /// <param name="script">The script.</param>
-        public void Execute(SqlScript script)
+        public int? ExecutionTimeoutSeconds { get; set; }
+
+        protected IObjectNameParser ObjectNameParser
         {
-            Execute(script, null);
+            get { return objectNameParser; }
+        }
+
+        protected Func<IConnectionManager> ConnectionManagerFactory
+        {
+            get { return connectionManagerFactory; }
         }
 
         /// <summary>
-        /// Verifies the existence of targeted schema. If schema is not verified, will check for the existence of the dbo schema.
+        /// Initializes an instance of the <see cref="DbScriptExecutor"/> class.
         /// </summary>
-        public void VerifySchema()
+        /// <param name="connectionManagerFactory"></param>
+        /// <param name="log">The logging mechanism.</param>
+        /// <param name="schema">The schema that contains the table.</param>
+        /// <param name="variablesEnabled">Function that returns <c>true</c> if variables should be replaced, <c>false</c> otherwise.</param>
+        /// <param name="scriptPreprocessors">Script Preprocessors in addition to variable substitution</param>
+        /// <param name="objectNameParser"></param>
+        protected DbScriptExecutor(Func<IConnectionManager> connectionManagerFactory, Func<IUpgradeLog> log, string schema, Func<bool> variablesEnabled,
+            IEnumerable<IScriptPreprocessor> scriptPreprocessors, IObjectNameParser objectNameParser)
         {
-            if (string.IsNullOrEmpty(Schema)) return;
+            Schema = schema;
+            this.connectionManagerFactory = connectionManagerFactory;
+            this.log = log;
+            this.variablesEnabled = variablesEnabled;
+            this.scriptPreprocessors = scriptPreprocessors;
+            this.objectNameParser = objectNameParser;
+        }
 
-            connectionManager().ExecuteCommandsWithManagedConnection(dbCommandFactory =>
-            {
-                var sqlRunner = new AdHocSqlRunner(dbCommandFactory, Schema, () => true);
-
-                sqlRunner.ExecuteNonQuery(string.Format(
-                    @"IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = N'{0}') Exec('CREATE SCHEMA [{0}]')", Schema));
-            });
+        /// <summary>
+        /// Executes the specified script against a database at a given connection string.
+        /// </summary>
+        /// <param name="script">The script.</param>
+        public virtual void Execute(SqlScript script)
+        {
+            Execute(script, null);
         }
 
         /// <summary>
@@ -80,12 +75,12 @@ namespace DbUp.Support.SqlServer
         /// </summary>
         /// <param name="script">The script.</param>
         /// <param name="variables">Variables to replace in the script</param>
-        public void Execute(SqlScript script, IDictionary<string, string> variables)
+        public virtual void Execute(SqlScript script, IDictionary<string, string> variables)
         {
             if (variables == null)
                 variables = new Dictionary<string, string>();
             if (Schema != null && !variables.ContainsKey("schema"))
-                variables.Add("schema", SqlObjectParser.QuoteSqlObjectName(Schema));
+                variables.Add("schema", objectNameParser.Quote(Schema));
 
             log().WriteInformation("Executing SQL Server script '{0}'", script.Name);
 
@@ -94,14 +89,14 @@ namespace DbUp.Support.SqlServer
                 contents = new StripSchemaPreprocessor().Process(contents);
             if (variablesEnabled())
                 contents = new VariableSubstitutionPreprocessor(variables).Process(contents);
-            contents = (scriptPreprocessors??new IScriptPreprocessor[0])
+            contents = (scriptPreprocessors ?? new IScriptPreprocessor[0])
                 .Aggregate(contents, (current, additionalScriptPreprocessor) => additionalScriptPreprocessor.Process(current));
 
-            var scriptStatements = connectionManager().SplitScriptIntoCommands(contents);
+            var scriptStatements = connectionManagerFactory().SplitScriptIntoCommands(contents);
             var index = -1;
             try
             {
-                connectionManager().ExecuteCommandsWithManagedConnection(dbCommandFactory =>
+                connectionManagerFactory().ExecuteCommandsWithManagedConnection(dbCommandFactory =>
                 {
                     foreach (var statement in scriptStatements)
                     {
@@ -115,13 +110,6 @@ namespace DbUp.Support.SqlServer
                         }
                     }
                 });
-            }
-            catch (SqlException sqlException)
-            {
-                log().WriteInformation("SQL exception has occured in script: '{0}'", script.Name);
-                log().WriteError("Script block number: {0}; Block line {1}; Message: {2}", index, sqlException.LineNumber, sqlException.Procedure, sqlException.Number, sqlException.Message);
-                log().WriteError(sqlException.ToString());
-                throw;
             }
             catch (DbException sqlException)
             {
@@ -137,5 +125,18 @@ namespace DbUp.Support.SqlServer
                 throw;
             }
         }
+
+        public virtual void VerifySchema()
+        {
+            if (string.IsNullOrEmpty(Schema)) return;
+
+            ConnectionManagerFactory().ExecuteCommandsWithManagedConnection(dbCommandFactory =>
+                {
+                    var sqlRunner = new AdHocSqlRunner(dbCommandFactory, ObjectNameParser, Schema, () => true);
+                    sqlRunner.ExecuteNonQuery(VerifySchemaSql(Schema));
+                });
+        }
+
+        protected abstract string VerifySchemaSql(string schema);
     }
 }

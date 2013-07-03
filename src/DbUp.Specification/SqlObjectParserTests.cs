@@ -13,7 +13,7 @@ namespace DbUp.Tests
         {
             var objectName = new string('x', 129);
 
-            Assert.That(() => SqlObjectParser.QuoteSqlObjectName(objectName), Throws.Exception.TypeOf<ArgumentOutOfRangeException>());
+            Assert.That(() => new SqlServerObjectNameParser().Quote(objectName), Throws.Exception.TypeOf<ArgumentOutOfRangeException>());
         }
 
         [Test]
@@ -21,7 +21,7 @@ namespace DbUp.Tests
         {
             var objectName = string.Empty;
 
-            Assert.That(() => SqlObjectParser.QuoteSqlObjectName(objectName), Throws.Exception.TypeOf<ArgumentNullException>());
+            Assert.That(() => new SqlServerObjectNameParser().Quote(objectName), Throws.Exception.TypeOf<ArgumentNullException>());
         }
 
         [Test]
@@ -29,7 +29,7 @@ namespace DbUp.Tests
         {
             string objectName = null;
 
-            Assert.That(() => SqlObjectParser.QuoteSqlObjectName(objectName), Throws.Exception.TypeOf<ArgumentNullException>());
+            Assert.That(() => new SqlServerObjectNameParser().Quote(objectName), Throws.Exception.TypeOf<ArgumentNullException>());
         }
 
         [Test]
@@ -37,7 +37,7 @@ namespace DbUp.Tests
         {
             var objectName = "[MyObject]";
 
-            var result = SqlObjectParser.QuoteSqlObjectName(objectName);
+            var result = new SqlServerObjectNameParser().Quote(objectName);
 
             Assert.That(result, Is.EqualTo(objectName));
         }
@@ -47,7 +47,7 @@ namespace DbUp.Tests
         {
             var objectName = "   [MyObject]  ";
 
-            var result = SqlObjectParser.QuoteSqlObjectName(objectName);
+            var result = new SqlServerObjectNameParser().Quote(objectName);
 
             Assert.That(result, Is.EqualTo(objectName.Trim()));
         }
@@ -58,7 +58,7 @@ namespace DbUp.Tests
             var objectName = "MyObject";
             var quotedObjectName = "[MyObject]";
 
-            var result = SqlObjectParser.QuoteSqlObjectName(objectName);
+            var result = new SqlServerObjectNameParser().Quote(objectName);
 
             Assert.That(result, Is.EqualTo(quotedObjectName));
         }
@@ -69,7 +69,7 @@ namespace DbUp.Tests
             var objectName = "    MyObject   ";
             var quotedObjectName = "[MyObject]";
 
-            var result = SqlObjectParser.QuoteSqlObjectName(objectName);
+            var result = new SqlServerObjectNameParser().Quote(objectName);
 
             Assert.That(result, Is.EqualTo(quotedObjectName));
         }
@@ -80,7 +80,7 @@ namespace DbUp.Tests
             var objectName = "MyObject]";
             var quotedObjectName = "[MyObject]]]";
 
-            var result = SqlObjectParser.QuoteSqlObjectName(objectName);
+            var result = new SqlServerObjectNameParser().Quote(objectName);
 
             Assert.That(result, Is.EqualTo(quotedObjectName));
         }
@@ -91,7 +91,7 @@ namespace DbUp.Tests
             var objectName = "MyO[bject";
             var quotedObjectName = "[MyO[bject]";
 
-            var result = SqlObjectParser.QuoteSqlObjectName(objectName);
+            var result = new SqlServerObjectNameParser().Quote(objectName);
 
             Assert.That(result, Is.EqualTo(quotedObjectName));
         }
@@ -102,7 +102,7 @@ namespace DbUp.Tests
             var objectName = "    MyObject   ";
             var quotedObjectName = "[    MyObject   ]";
 
-            var result = SqlObjectParser.QuoteSqlObjectName(objectName, ObjectNameOptions.None);
+            var result = new SqlServerObjectNameParser().Quote(objectName, ObjectNameOptions.None);
 
             Assert.That(result, Is.EqualTo(quotedObjectName));
         }

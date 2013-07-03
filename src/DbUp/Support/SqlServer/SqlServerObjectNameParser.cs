@@ -3,8 +3,13 @@ using System.Linq;
 
 namespace DbUp.Support.SqlServer
 {
-    public class SqlObjectParser
+    /// <summary>
+    /// 
+    /// </summary>
+    public class SqlServerObjectNameParser : IObjectNameParser
     {
+        const int SqlSysnameLength = 128;
+
         /// <summary>
         /// Quotes the name of the SQL object in square brackets to allow Special characters in the object name.
         /// This function implements System.Data.SqlClient.SqlCommandBuilder.QuoteIdentifier() with an additional
@@ -12,9 +17,9 @@ namespace DbUp.Support.SqlServer
         /// </summary>
         /// <param name="objectName">Name of the object to quote.</param>
         /// <returns>The quoted object name with trimmed whitespace</returns>
-        public static string QuoteSqlObjectName(string objectName)
+        public string Quote(string objectName)
         {
-            return QuoteSqlObjectName(objectName, ObjectNameOptions.Trim);
+            return Quote(objectName, ObjectNameOptions.Trim);
         }
 
         /// <summary>
@@ -25,7 +30,7 @@ namespace DbUp.Support.SqlServer
         /// <param name="objectName">Name of the object to quote.</param>
         /// <param name="objectNameOptions">The settings which indicate if the whitespace should be dropped or not.</param>
         /// <returns>The quoted object name</returns>
-        public static string QuoteSqlObjectName(string objectName, ObjectNameOptions objectNameOptions)
+        public string Quote(string objectName, ObjectNameOptions objectNameOptions)
         {
             if (string.IsNullOrEmpty(objectName))
                 throw new ArgumentNullException();
@@ -33,7 +38,6 @@ namespace DbUp.Support.SqlServer
             if (ObjectNameOptions.Trim == objectNameOptions)
                 objectName = objectName.Trim();
 
-            const int SqlSysnameLength = 128;
             if (objectName.Length > SqlSysnameLength)
                 throw new ArgumentOutOfRangeException(@"objectName", "A SQL server object name is maximum 128 characters long");
 

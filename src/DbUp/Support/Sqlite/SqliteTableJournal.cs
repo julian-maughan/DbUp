@@ -10,13 +10,13 @@ namespace DbUp.Support.SQLite
     /// An implementation of the <see cref="IJournal"/> interface which tracks version numbers for a 
     /// SQLite database using a table called SchemaVersions.
     /// </summary>
-    public sealed class SQLiteTableJournal : SqlTableJournal
+    public sealed class SQLiteTableJournal : DbTableJournal
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="SQLiteTableJournal"/> class.
         /// </summary>
         public SQLiteTableJournal(Func<IConnectionManager> connectionManager, Func<IUpgradeLog> logger, string table) : 
-            base(connectionManager, logger, null, table)
+            base(connectionManager, logger, new SqlServerObjectNameParser(), null, table)
         {}
 
         /// <summary>
